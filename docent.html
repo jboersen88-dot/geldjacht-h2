@@ -25,7 +25,7 @@ button{font:inherit;font-weight:700;border:0;border-radius:12px;padding:12px 16p
 <h1>🏆 Geldjacht: docent</h1>
 <p><a href="bord.html" target="_blank" style="color:#ffd166;font-weight:700">📺 Scorebord voor op het digibord openen</a></p>
 <div class="card"><h2 style="margin-top:0">Winnaars <span id="ronde" class="klein"></span></h2><div class="podium" id="podium"></div><div id="rest"></div></div>
-<div class="card"><h2 style="margin-top:0">Groepen</h2><table><thead><tr><th>Namen</th><th>Foto</th><th>Goed</th><th>Reken</th><th>Stukjes</th><th>Klaar</th></tr></thead><tbody id="groepen"></tbody></table>
+<div class="card"><h2 style="margin-top:0">Groepen</h2><table><thead><tr><th>Namen</th><th>Foto</th><th>Goed</th><th>Makk. · Moeil. · Reken</th><th>Stukjes</th><th>Klaar</th></tr></thead><tbody id="groepen"></tbody></table>
 <p class="klein">Ververst elke 10 seconden.</p></div>
 <div class="card"><button id="nieuw">Nieuwe ronde starten (volgende klas)</button><p class="klein">Alle groepen beginnen dan opnieuw en de kaartjes zijn weer bruikbaar. Je hebt de pincode nodig.</p></div>
 </main>
@@ -40,7 +40,7 @@ function laad(){
     document.getElementById("podium").innerHTML=[0,1,2].map(function(i){var x=w[i];return '<div class="plek p'+(i+1)+'"><b>'+(i+1)+'</b>'+(x?esc(x.namen)+'<br><span class="klein">foto '+x.foto+' · '+tijd(x.t)+'</span>':'nog niemand')+'</div>';}).join("");
     document.getElementById("rest").innerHTML=w.slice(3).map(function(x,i){return '<p>'+(i+4)+'. '+esc(x.namen)+' <span class="klein">'+tijd(x.t)+'</span></p>';}).join("");
     d.groepen.sort(function(a,b){return (b.stukjes-a.stukjes)||(b.vragen-a.vragen);});
-    document.getElementById("groepen").innerHTML=d.groepen.map(function(g){return '<tr><td>'+esc(g.namen)+'</td><td>'+g.foto+'</td><td>'+g.vragen+'</td><td>'+g.reken+'/3</td><td>'+g.stukjes+'</td><td>'+(g.klaar?"✅ "+tijd(g.klaar):"")+'</td></tr>';}).join("")||'<tr><td colspan="6">Nog geen groepen.</td></tr>';
+    document.getElementById("groepen").innerHTML=d.groepen.map(function(g){return '<tr><td>'+esc(g.namen)+'</td><td>'+g.foto+'</td><td>'+g.vragen+'</td><td>'+(g.mk||0)+'/5 · '+(g.mo||0)+'/3 · '+g.reken+'/4</td><td>'+g.stukjes+'</td><td>'+(g.klaar?"✅ "+tijd(g.klaar):"")+'</td></tr>';}).join("")||'<tr><td colspan="6">Nog geen groepen.</td></tr>';
   }).catch(function(){});
 }
 laad();setInterval(laad,10000);

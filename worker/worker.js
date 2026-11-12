@@ -51,7 +51,7 @@ export default {
       const namen = String(b.namen || "").replace(/[<>]/g, "").slice(0, 60).trim();
       if (!namen) return json({ fout: "Vul jullie namen in" });
       const id = crypto.randomUUID().slice(0, 8);
-      const g = { id, namen, foto: 1 + Math.floor(Math.random() * 6), t: Date.now(), stukjes: 0, vragen: 0, reken: 0 };
+      const g = { id, namen, foto: 1 + Math.floor(Math.random() * 6), t: Date.now(), stukjes: 0, vragen: 0, reken: 0, mk: 0, mo: 0 };
       await put(env, "g:" + ronde + ":" + id, g);
       return json({ ok: true, ronde, id, foto: g.foto });
     }
@@ -61,7 +61,7 @@ export default {
     const g = await get(env, gk);
     if (!g) return json({ fout: "Jullie spel hoort bij een oude ronde. Vraag de docent.", oud: true });
     if (b.voortgang) {
-      g.stukjes = Number(b.voortgang.stukjes) || 0; g.vragen = Number(b.voortgang.vragen) || 0; g.reken = Number(b.voortgang.reken) || 0;
+      g.stukjes = Number(b.voortgang.stukjes) || 0; g.vragen = Number(b.voortgang.vragen) || 0; g.reken = Number(b.voortgang.reken) || 0; g.mk = Number(b.voortgang.mk) || 0; g.mo = Number(b.voortgang.mo) || 0;
       g.laatst = Date.now();
     }
     if (b.a === "voortgang") { await put(env, gk, g); return json({ ok: true }); }
@@ -93,7 +93,7 @@ export default {
     }
     // W = plek-code (QR bij de locatie)
     if (code.foto !== g.foto) return json({ fout: "Dit is niet jullie plek! Kijk nog eens goed naar jullie foto." });
-    if (g.reken < 3) return json({ fout: "Bijna! Jullie moeten eerst 3 rekenvragen goed hebben." });
+    if (g.reken < 4 || (g.mo || 0) < 3 || (g.mk || 0) < 5) return json({ fout: "Bijna! Jullie moeten eerst 5 makkelijke, 3 moeilijke en 4 rekenvragen goed hebben." });
     const wk = "w:" + ronde, w = (await get(env, wk)) || [];
     let i = w.findIndex(x => x.id === g.id);
     if (i < 0) { w.push({ id: g.id, namen: g.namen, foto: g.foto, t: Date.now() }); i = w.length - 1; await put(env, wk, w); }

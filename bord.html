@@ -36,7 +36,7 @@ function laad(){
   fetch(SPEL).then(function(r){return r.json();}).then(function(d){
     var g=d.groepen.slice().sort(function(a,b){return (b.vragen-a.vragen)||(b.stukjes-a.stukjes)||(a.t-b.t);});
     document.getElementById("win").innerHTML=d.winnaars.slice(0,3).map(function(x,i){return ["🥇","🥈","🥉"][i]+" "+esc(x.namen);}).map(function(t){return "<div>"+t+"</div>";}).join("");
-    document.getElementById("lijst").innerHTML=g.map(function(x,i){return '<tr'+(i===0&&x.vragen>0&&!x.klaar?' class="top"':'')+'><td>'+(i+1)+'</td><td>'+esc(x.namen)+(x.klaar?" 🏁":"")+(i===0&&x.vragen>0&&!x.klaar?" 🎯":"")+'</td><td class="n">'+x.vragen+'</td><td class="n">'+x.reken+'/3</td><td class="n">'+x.stukjes+'</td></tr>';}).join("");
+    document.getElementById("lijst").innerHTML=g.map(function(x,i){return '<tr'+(i===0&&x.vragen>0&&!x.klaar?' class="top"':'')+'><td>'+(i+1)+'</td><td>'+esc(x.namen)+(x.klaar?" 🏁":"")+(i===0&&x.vragen>0&&!x.klaar?" 🎯":"")+'</td><td class="n">'+x.vragen+'</td><td class="n">'+x.reken+'/4</td><td class="n">'+x.stukjes+'</td></tr>';}).join("");
     document.getElementById("leeg").textContent=g.length?"":"Nog geen groepen gestart.";
     document.getElementById("tijd").textContent="bijgewerkt "+new Date().toLocaleTimeString("nl-NL",{hour:"2-digit",minute:"2-digit"});
   }).catch(function(){});

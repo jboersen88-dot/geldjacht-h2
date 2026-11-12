@@ -79,7 +79,7 @@ function bewaar(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
 function $(id){return document.getElementById(id);}
 function esc(t){return String(t==null?"":t).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
 function post(url,o){return fetch(url,{method:"POST",body:JSON.stringify(o)}).then(function(r){return r.json();});}
-function voortgang(){return {stukjes:S.stappen,vragen:S.vragen,reken:S.reken};}
+function voortgang(){return {stukjes:S.stappen,vragen:S.vragen,reken:S.reken,mk:S.mk||0,mo:S.mo||0};}
 var plekUitUrl=(new URLSearchParams(location.search)).get("code");
 if(plekUitUrl)history.replaceState(null,"",location.pathname);
 
@@ -87,7 +87,7 @@ if(plekUitUrl)history.replaceState(null,"",location.pathname);
 function startScherm(){
   $("app").innerHTML='<h1>💰 Geldjacht: Jij en je geld</h1><p class="sub">Economie 2 mavo · hoofdstuk 2</p>'+
   '<div class="card"><p>Jullie spelen met z\'n tweeën. Beantwoord vragen, haal codes bij de docent en ontdek stukje voor stukje een foto van een plek in de school. Daar hangt een QR-code. De eerste 3 groepen die hem scannen winnen!</p>'+
-  '<p><b>Regels:</b> minstens 3 rekenvragen goed · de AI kijkt na en geeft hints · pas als het scherm groen is mag je naar de docent.</p>'+
+  '<p><b>Regels:</b> minstens 5 makkelijke, 3 moeilijke en 4 rekenvragen goed (pas dan blijft de foto zichtbaar en mag je scannen) · de AI kijkt na en geeft hints · pas als het scherm groen is mag je naar de docent.</p>'+
   '<label for="n1">Voornaam 1</label><input id="n1" autocomplete="off" maxlength="25">'+
   '<label for="n2">Voornaam 2</label><input id="n2" autocomplete="off" maxlength="25">'+
   '<p id="startFout"></p><button class="prim" id="startBtn">Start het spel</button></div>';
@@ -118,7 +118,9 @@ function thuis(){
   (S.dubbel?'<p class="melding pest">Pestkaart actief: nog '+(S.dubbel+1)+' vragen goed voordat het scherm groen wordt.</p>':'')+
   '</div><div class="grid2"><div class="card"><h2 style="margin-top:0">Jullie foto</h2><div class="fotobox"><canvas id="cv" width="600" height="800" aria-label="Deels zichtbare foto"></canvas><div id="slotLaag"></div></div>'+
   '<div class="stat"><span class="pill">'+Math.min(S.stappen,n)+' van '+n+' stukjes</span></div></div>'+
-  '<div class="card"><h2 style="margin-top:0">Voortgang</h2><div class="stat"><span class="pill '+(S.reken>=3?"ok":"no")+'">Rekenvragen goed: '+S.reken+' / 3</span><span class="pill">Totaal goed: '+S.vragen+'</span></div>'+
+  '<div class="card"><h2 style="margin-top:0">Voortgang</h2><div class="stat">'+
+  [["makkelijk","⭐ Makkelijk",S.mk],["moeilijk","⭐⭐ Moeilijk",S.mo],["reken","🧮 Reken",S.reken]].map(function(x){return '<span class="pill '+(x[2]>=DOEL[x[0]]?"ok":"no")+'">'+x[1]+': '+x[2]+' / '+DOEL[x[0]]+'</span>';}).join("")+
+  '<span class="pill">Totaal goed: '+S.vragen+'</span></div><p class="klein">Haal alle drie de doelen: dan blijft jullie foto zichtbaar en mogen jullie de QR-code scannen.</p>'+
   '<label for="code">Code invoeren (pestkaart of QR-plek)</label><div class="row"><input id="code" autocomplete="off" autocapitalize="characters" maxlength="10" placeholder="bijv. P7KQ2X"><button class="prim" id="codeBtn">OK</button></div><div id="codeMsg"></div>'+
   '<p class="klein">Gevonden plek? Scan de QR-code met de camera van deze iPad, of typ de code die eronder staat.</p></div></div>';
   Array.prototype.forEach.call(document.querySelectorAll(".kies button"),function(b){b.onclick=function(){nieuweVraag(b.getAttribute("data-t"));};});
@@ -139,11 +141,22 @@ function tekenFoto(){
   if(!img.complete)return;
   st.forEach(function(r){ctx.drawImage(img,r[0]*100,r[1]*100,r[2]*100,r[3]*100,r[0]*k,r[1]*k,r[2]*k,r[3]*k);});
   clearInterval(slotTimer);
-  var sl=$("slotLaag");
-  function upd(){var s=Math.ceil((S.slotTot-Date.now())/1000);if(!$("slotLaag"))return clearInterval(slotTimer);
-    if(s>0)sl.innerHTML='<div class="slot">🔒 Foto op slot (pestkaart)<br>nog '+Math.floor(s/60)+':'+("0"+s%60).slice(-2)+'</div>';else{sl.innerHTML="";clearInterval(slotTimer);}}
-  upd();if(S.slotTot>Date.now())slotTimer=setInterval(upd,1000);
+  var sl=$("slotLaag"),vorige="";
+  function zet(h){if(h!==vorige){sl.innerHTML=h;vorige=h;var b=$("kijkBtn");if(b)b.onclick=kijk;}}
+  function mmss(ms){var s=Math.ceil(ms/1000);return Math.floor(s/60)+':'+("0"+s%60).slice(-2);}
+  function upd(){
+    if(!$("slotLaag"))return clearInterval(slotTimer);
+    var nu=Date.now();
+    if(S.slotTot>nu)return zet('<div class="slot">🔒 Foto op slot (pestkaart)<br>nog '+mmss(S.slotTot-nu)+'</div>');
+    if(fotoVrij()||(S.kijkEind||0)>nu)return zet("");
+    if((S.kijkWacht||0)>nu)return zet('<div class="slot">🙈 Foto verborgen<br><span style="font-size:17px;font-weight:500">Weer kijken over '+mmss(S.kijkWacht-nu)+'</span></div>');
+    zet('<div class="slot">🙈 Foto verborgen<button class="prim" id="kijkBtn" style="background:#ffd166;color:#1d2433;margin-top:14px">👁 Bekijk 3 seconden</button><span style="font-size:15px;font-weight:500;margin-top:12px">Pas na '+DOEL.makkelijk+' makkelijke, '+DOEL.moeilijk+' moeilijke en '+DOEL.reken+' rekenvragen goed blijft de foto zichtbaar.</span></div>');
+  }
+  function kijk(){S.kijkEind=Date.now()+3000;S.kijkWacht=Date.now()+63000;bewaar();upd();}
+  upd();slotTimer=setInterval(upd,250);
 }
+var DOEL={makkelijk:5,moeilijk:3,reken:4};
+function fotoVrij(){return S.mk>=DOEL.makkelijk&&S.mo>=DOEL.moeilijk&&S.reken>=DOEL.reken;}
 
 /* ---------- Vragen ---------- */
 function nieuweVraag(t){
@@ -216,7 +229,7 @@ function nakijken(){
     }).catch(function(){vraagScherm();zetFb("De AI is even niet bereikbaar. Wacht een paar seconden en probeer opnieuw. Lukt het niet? Roep de docent.");});
 }
 function goed(){
-  var h=S.huidig;S.vragen++;if(h.t==="reken"){S.reken++;S.forceReken=false;}
+  var h=S.huidig;S.vragen++;if(h.t==="reken"){S.reken++;S.forceReken=false;}if(h.t==="makkelijk")S.mk=(S.mk||0)+1;if(h.t==="moeilijk")S.mo=(S.mo||0)+1;
   S.meld="";
   if(S.dubbel>0){S.dubbel--;S.huidig=null;S.meld="Goed! Maar door de pestkaart moet je nog 1 vraag goed hebben voordat je naar de docent mag.";bewaar();post(SPEL,{a:"voortgang",id:S.id,voortgang:voortgang()}).catch(function(){});return thuis();}
   S.wacht={niveau:h.t,vraag:vraagTekst(h),antwoord:(h.ber?h.ber+"\n→ ":"")+h.ant,t:Date.now()};S.huidig=null;bewaar();
