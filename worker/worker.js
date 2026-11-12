@@ -1,5 +1,37 @@
 // Cloudflare Worker voor het spel "Jij en je geld" (economie 2 mavo H2): groepen, codes, pestkaarten en ranglijst.
 // Secrets: SLEUTEL (maakt en controleert codes), PIN (docent). KV-binding: SPEL.
+import { DurableObject } from "cloudflare:workers";
+
+// Opslag in één Durable Object (KV had een te lage gratis schrijflimiet: 1000 per dag).
+export class Opslag extends DurableObject {
+  async lees(k) { return (await this.ctx.storage.get(k)) ?? null; }
+  async schrijf(k, v) { await this.ctx.storage.put(k, v); }
+  async wis(k) { await this.ctx.storage.delete(k); }
+  async lijst(prefix) { return [...(await this.ctx.storage.list({ prefix })).keys()]; }
+  // Eenmalig de oude KV-gegevens overnemen; bestaande sleutels niet overschrijven
+  async migreer(paren) {
+    if (await this.ctx.storage.get("_gemigreerd")) return;
+    for (const [k, v] of paren) if ((await this.ctx.storage.get(k)) === undefined) await this.ctx.storage.put(k, v);
+    await this.ctx.storage.put("_gemigreerd", "1");
+  }
+}
+function maakDb(env) {
+  const o = env.OPSLAG.get(env.OPSLAG.idFromName("spel"));
+  return {
+    get: k => o.lees(k),
+    put: (k, v) => o.schrijf(k, v),
+    delete: k => o.wis(k),
+    list: async ({ prefix }) => ({ keys: (await o.lijst(prefix)).map(name => ({ name })), list_complete: true }),
+    async migreer() {
+      if (await o.lees("_gemigreerd")) return;
+      const l = await env.SPEL.list({ limit: 1000 });
+      const paren = [];
+      for (const k of l.keys) { const v = await env.SPEL.get(k.name); if (v != null) paren.push([k.name, v]); }
+      await o.migreer(paren);
+    },
+  };
+}
+
 const ALFA = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ";
 const EFFECT = ["weg2", "reken", "dubbel", "slot"];
 const ORIGINS = ["https://jboersen88-dot.github.io", "http://localhost:8123"];
@@ -16,8 +48,9 @@ async function leesCode(env, raw) {
   const n = ALFA.indexOf(c[1]);
   return { c, type: c[0], effect: EFFECT[n % 4], foto: (n % 6) + 1 };
 }
-const get = async (env, k) => JSON.parse((await env.SPEL.get(k)) || "null");
-const put = (env, k, v) => env.SPEL.put(k, JSON.stringify(v), { expirationTtl: 60 * 60 * 24 * 14 });
+const get = async (env, k) => JSON.parse((await env.DB.get(k)) || "null");
+// Opslaan mag nooit het spel laten vastlopen (bijv. als de dagelijkse KV-schrijflimiet op is)
+const put = async (env, k, v) => { try { await env.DB.put(k, JSON.stringify(v)); return true; } catch { return false; } };
 
 export default {
   async fetch(req, env) {
@@ -25,13 +58,15 @@ export default {
     const cors = { "Access-Control-Allow-Origin": ORIGINS.includes(origin) ? origin : ORIGINS[0], "Access-Control-Allow-Methods": "GET, POST, OPTIONS", "Access-Control-Allow-Headers": "Content-Type", "Vary": "Origin" };
     const json = (o, s = 200) => new Response(JSON.stringify(o), { status: s, headers: { ...cors, "Content-Type": "application/json" } });
     if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
-    const ronde = (await env.SPEL.get("ronde")) || "1";
+    env = { ...env, DB: maakDb(env) };
+    await env.DB.migreer();
+    const ronde = (await env.DB.get("ronde")) || "1";
 
     if (req.method === "GET") {
       const groepen = [];
       let cur;
       do {
-        const l = await env.SPEL.list({ prefix: "g:" + ronde + ":", cursor: cur });
+        const l = await env.DB.list({ prefix: "g:" + ronde + ":", cursor: cur });
         for (const k of l.keys) { const g = await get(env, k.name); if (g) groepen.push(g); }
         cur = l.list_complete ? null : l.cursor;
       } while (cur);
@@ -44,7 +79,7 @@ export default {
     if (b.a === "ronde") {
       if (String(b.pin) !== env.PIN) return json({ fout: "Verkeerde pincode" });
       const nieuw = String(Number(ronde) + 1);
-      await env.SPEL.put("ronde", nieuw);
+      await env.DB.put("ronde", nieuw);
       return json({ ok: true, ronde: nieuw });
     }
     if (b.a === "start") {
@@ -60,15 +95,15 @@ export default {
     const gk = "g:" + ronde + ":" + String(b.id || "").slice(0, 8);
     const g = await get(env, gk);
     if (!g) return json({ fout: "Jullie spel hoort bij een oude ronde. Vraag de docent.", oud: true });
+    const oud = JSON.stringify(g);
     if (b.voortgang) {
       g.stukjes = Number(b.voortgang.stukjes) || 0; g.vragen = Number(b.voortgang.vragen) || 0; g.reken = Number(b.voortgang.reken) || 0; g.mk = Number(b.voortgang.mk) || 0; g.mo = Number(b.voortgang.mo) || 0;
-      g.laatst = Date.now();
     }
     if (b.a === "voortgang") {
-      await put(env, gk, g);
+      if (JSON.stringify(g) !== oud) { g.laatst = Date.now(); await put(env, gk, g); } // alleen schrijven als er iets veranderd is
       // Pestkaarten die andere groepen naar deze groep stuurden (zonder afzender)
       const ik = "i:" + ronde + ":" + g.id, inbox = await get(env, ik);
-      if (inbox && inbox.length) await env.SPEL.delete(ik);
+      if (inbox && inbox.length) { try { await env.DB.delete(ik); } catch {} }
       return json({ ok: true, pest: inbox || [] });
     }
     if (b.a === "pest") {
@@ -94,7 +129,7 @@ export default {
       const niveau = { E: "makkelijk", M: "moeilijk", R: "reken" }[code.type];
       if (b.wacht !== niveau) return json({ fout: "Deze code hoort bij een ander soort vraag. Ga terug naar de docent." });
       const uk = "u:" + ronde + ":" + code.c;
-      if (await env.SPEL.get(uk)) return json({ fout: "Deze code is al gebruikt." });
+      if (await env.DB.get(uk)) return json({ fout: "Deze code is al gebruikt." });
       await put(env, uk, g.id); await put(env, gk, g);
       return json({ ok: true, type: "stuk", niveau, aantal: niveau === "makkelijk" ? 1 : 2 });
     }
@@ -109,7 +144,7 @@ export default {
       // Lijst met andere groepen om uit te kiezen (zelf en klaar-groepen niet)
       const groepen = []; let cur;
       do {
-        const l = await env.SPEL.list({ prefix: "g:" + ronde + ":", cursor: cur });
+        const l = await env.DB.list({ prefix: "g:" + ronde + ":", cursor: cur });
         for (const k of l.keys) { const x = await get(env, k.name); if (x && x.id !== g.id && !x.klaar) groepen.push({ id: x.id, namen: x.namen }); }
         cur = l.list_complete ? null : l.cursor;
       } while (cur);
