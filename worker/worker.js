@@ -82,6 +82,19 @@ export default {
       await env.DB.put("ronde", nieuw);
       return json({ ok: true, ronde: nieuw });
     }
+    if (b.a === "zetwin") {
+      // Docent: winnaarslijst handmatig corrigeren (volgorde = lijst met groep-id's)
+      if (String(b.pin) !== env.PIN) return json({ fout: "Verkeerde pincode" });
+      const oud = (await get(env, "w:" + ronde)) || [], w = [];
+      for (const id of b.ids || []) {
+        const gk = "g:" + ronde + ":" + String(id).slice(0, 8), x = await get(env, gk);
+        if (!x) return json({ fout: "Groep " + id + " niet gevonden" });
+        const e = oud.find(o => o.id === x.id);
+        w.push({ id: x.id, namen: x.namen, foto: x.foto, t: e ? e.t : null });
+        if (!x.klaar) { x.klaar = true; await put(env, gk, x); }
+      }
+      return json({ ok: await put(env, "w:" + ronde, w), winnaars: w });
+    }
     if (b.a === "start") {
       const namen = String(b.namen || "").replace(/[<>]/g, "").slice(0, 60).trim();
       if (!namen) return json({ fout: "Vul jullie namen in" });

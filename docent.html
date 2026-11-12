@@ -32,7 +32,7 @@ button{font:inherit;font-weight:700;border:0;border-radius:12px;padding:12px 16p
 <script>
 var SPEL="https://economie-h2-spel.nakijker-worker.workers.dev";
 function esc(t){return String(t==null?"":t).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
-function tijd(t){return t?new Date(t).toLocaleTimeString("nl-NL",{hour:"2-digit",minute:"2-digit",second:"2-digit"}):"";}
+function tijd(t){return typeof t==="number"?new Date(t).toLocaleTimeString("nl-NL",{hour:"2-digit",minute:"2-digit",second:"2-digit"}):"";}
 function laad(){
   fetch(SPEL).then(function(r){return r.json();}).then(function(d){
     document.getElementById("ronde").textContent="· ronde "+d.ronde;
