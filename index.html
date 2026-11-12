@@ -170,12 +170,13 @@ function vraagScherm(){
       :'<label for="ant">Jullie antwoord</label><textarea id="ant">'+esc(h.ant)+'</textarea>')+
   '<div id="fb">'+(h.fb?'<div class="fb">'+esc(h.fb)+'</div>':'')+'</div>'+
   '<div class="row" style="margin-top:12px"><button class="prim" id="checkBtn">Laat de AI nakijken</button>'+
-  (h.pog>=4?'<button class="ghost" id="wisselBtn">Andere vraag (zelfde soort)</button>':'<span class="klein">Pogingen: '+h.pog+(h.pog?' · na 4 pogingen mag je wisselen':'')+'</span>')+'</div>'+
+  '<button class="ghost" id="wisselBtn">🔄 Andere vraag</button><button class="ghost" id="terugBtn">↩ Terug naar kiezen</button></div>'+
   '<p style="margin-top:22px"><a href="#" class="klein" id="docBtn">Docent: handmatig goedkeuren</a></p></div>';
   var bewaarInvoer=function(){h.ant=$("ant").value;if(rek)h.ber=$("ber").value;bewaar();};
   $("ant").oninput=bewaarInvoer;if(rek)$("ber").oninput=bewaarInvoer;
   $("checkBtn").onclick=nakijken;
-  if($("wisselBtn"))$("wisselBtn").onclick=function(){if(confirm("Weet je het zeker? Je krijgt een nieuwe vraag van hetzelfde soort."))nieuweVraag(h.t);};
+  $("wisselBtn").onclick=function(){nieuweVraag(h.t);};
+  $("terugBtn").onclick=function(){S.huidig=null;bewaar();thuis();};
   $("docBtn").onclick=function(e){e.preventDefault();var p=prompt("Pincode docent:");if(!p)return;
     post(SPEL,{a:"pin",pin:p}).then(function(r){if(r.ok)goed();else alert("Verkeerde pincode.");}).catch(function(){alert("Geen verbinding.");});};
 }
