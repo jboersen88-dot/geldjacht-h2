@@ -64,7 +64,26 @@ export default {
       g.stukjes = Number(b.voortgang.stukjes) || 0; g.vragen = Number(b.voortgang.vragen) || 0; g.reken = Number(b.voortgang.reken) || 0; g.mk = Number(b.voortgang.mk) || 0; g.mo = Number(b.voortgang.mo) || 0;
       g.laatst = Date.now();
     }
-    if (b.a === "voortgang") { await put(env, gk, g); return json({ ok: true }); }
+    if (b.a === "voortgang") {
+      await put(env, gk, g);
+      // Pestkaarten die andere groepen naar deze groep stuurden (zonder afzender)
+      const ik = "i:" + ronde + ":" + g.id, inbox = await get(env, ik);
+      if (inbox && inbox.length) await env.SPEL.delete(ik);
+      return json({ ok: true, pest: inbox || [] });
+    }
+    if (b.a === "pest") {
+      const code = await leesCode(env, b.code);
+      if (!code || code.type !== "P") return json({ fout: "Dit is geen pestkaart." });
+      const pk = "p:" + ronde + ":" + code.c, p = await get(env, pk);
+      if (!p || p.eigenaar !== g.id) return json({ fout: "Voer de pestkaart eerst in op jullie groene scherm." });
+      if (p.slachtoffer) return json({ fout: "Deze pestkaart is al gebruikt." });
+      const doel = await get(env, "g:" + ronde + ":" + String(b.doel || "").slice(0, 8));
+      if (!doel || doel.id === g.id) return json({ fout: "Kies een andere groep." });
+      p.slachtoffer = doel.id; await put(env, pk, p);
+      const ik = "i:" + ronde + ":" + doel.id, inbox = (await get(env, ik)) || [];
+      inbox.push(code.effect); await put(env, ik, inbox); await put(env, gk, g);
+      return json({ ok: true, type: "pestweg", namen: doel.namen });
+    }
     if (b.a !== "code") return json({ fout: "Onbekende actie" }, 400);
 
     const code = await leesCode(env, b.code);
@@ -81,15 +100,20 @@ export default {
     }
     if (code.type === "P") {
       const pk = "p:" + ronde + ":" + code.c, p = await get(env, pk);
+      if (p && p.slachtoffer) return json({ fout: "Deze pestkaart is al gebruikt." });
+      if (p && p.eigenaar !== g.id) return json({ fout: "Deze pestkaart is van een andere groep." });
       if (!p) {
-        if (!b.wacht) return json({ fout: "Deze pestkaart is nog niet door de docent uitgedeeld." });
+        if (!b.wacht) return json({ fout: "Een pestkaart voer je in op jullie groene scherm, als je hem van de docent krijgt." });
         await put(env, pk, { eigenaar: g.id }); await put(env, gk, g);
-        return json({ ok: true, type: "pestgekregen" });
       }
-      if (p.slachtoffer) return json({ fout: "Deze pestkaart is al gebruikt." });
-      if (p.eigenaar === g.id) return json({ fout: "Deze pestkaart moet je aan een ANDERE groep geven!" });
-      p.slachtoffer = g.id; await put(env, pk, p); await put(env, gk, g);
-      return json({ ok: true, type: "pest", effect: code.effect });
+      // Lijst met andere groepen om uit te kiezen (zelf en klaar-groepen niet)
+      const groepen = []; let cur;
+      do {
+        const l = await env.SPEL.list({ prefix: "g:" + ronde + ":", cursor: cur });
+        for (const k of l.keys) { const x = await get(env, k.name); if (x && x.id !== g.id && !x.klaar) groepen.push({ id: x.id, namen: x.namen }); }
+        cur = l.list_complete ? null : l.cursor;
+      } while (cur);
+      return json({ ok: true, type: "pestkies", effect: code.effect, groepen });
     }
     // W = plek-code (QR bij de locatie)
     if (code.foto !== g.foto) return json({ fout: "Dit is niet jullie plek! Kijk nog eens goed naar jullie foto." });
