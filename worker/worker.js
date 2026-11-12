@@ -155,7 +155,11 @@ export default {
     if (g.reken < 4 || (g.mo || 0) < 3 || (g.mk || 0) < 5) return json({ fout: "Bijna! Jullie moeten eerst 5 makkelijke, 3 moeilijke en 4 rekenvragen goed hebben." });
     const wk = "w:" + ronde, w = (await get(env, wk)) || [];
     let i = w.findIndex(x => x.id === g.id);
-    if (i < 0) { w.push({ id: g.id, namen: g.namen, foto: g.foto, t: Date.now() }); i = w.length - 1; await put(env, wk, w); }
+    if (i < 0) {
+      w.push({ id: g.id, namen: g.namen, foto: g.foto, t: Date.now() }); i = w.length - 1;
+      // Nooit een winst tonen die niet is opgeslagen
+      if (!(await put(env, wk, w))) return json({ fout: "Opslaan lukte niet. Scan de QR-code over een paar seconden opnieuw." });
+    }
     g.klaar = w[i].t; await put(env, gk, g);
     return json({ ok: true, type: "win", plaats: i + 1 });
   },
