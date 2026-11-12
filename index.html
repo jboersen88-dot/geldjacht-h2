@@ -289,7 +289,7 @@ function krijgPest(e){
   if(e==="reken")S.forceReken=true;
   if(e==="dubbel")S.dubbel=1;
   if(e==="slot")S.slotTot=Date.now()+180000;
-  S.meld="😈 "+PEST[e]+" (Van een andere groep… wie zou het zijn?)";
+  S.meld="😈 "+PEST[e];
 }
 // Elke 10 seconden: voortgang doorgeven en kijken of er een pestkaart binnen is
 function sync(){
