@@ -68,7 +68,7 @@ a.klein{color:var(--muted)}
 <div id="win" role="dialog"><div id="winIn"></div></div>
 
 <script src="vragen.js"></script>
-<script src="vragen-extra.js"></script>
+<script src="vragen-extra.js?v=2"></script>
 <script src="fotos.js"></script>
 <script>
 var SPEL="https://economie-h2-spel.nakijker-worker.workers.dev";
@@ -189,6 +189,8 @@ function vraagScherm(){
   '<p style="margin-top:22px"><a href="#" class="klein" id="docBtn">Docent: handmatig goedkeuren</a></p></div>';
   var bewaarInvoer=function(){h.ant=$("ant").value;if(rek)h.ber=$("ber").value;bewaar();};
   $("ant").oninput=bewaarInvoer;if(rek)$("ber").oninput=bewaarInvoer;
+  var geenPlak=function(e){e.preventDefault();zetFb("🚫 Plakken mag niet. Schrijf het antwoord in jullie eigen woorden.");};
+  $("ant").onpaste=$("ant").ondrop=geenPlak;if(rek)$("ber").onpaste=$("ber").ondrop=geenPlak;
   $("checkBtn").onclick=nakijken;
   $("wisselBtn").onclick=function(){nieuweVraag(h.t);};
   $("terugBtn").onclick=function(){S.huidig=null;bewaar();thuis();};
@@ -221,14 +223,26 @@ function nakijken(){
   }
   if(h.ant.length<2)return zetFb("Schrijf eerst een antwoord op.");
   var v=(h.t==="makkelijk"?MAKKELIJK:MOEILIJK)[h.q.i];
+  if(gekopieerd(h.ant,(h.hints||[]).concat(v.tip||[])))return zetFb("🚫 Dit mag niet: jullie antwoord is (bijna) letterlijk de hint. Schrijf het in jullie eigen woorden.");
   btn.disabled=true;btn.textContent="AI kijkt na…";
   post(AI,{vraag:v.q,antwoord:h.ant,voorbeeld:v.v,vak:"economie",niveau:"mavo, jaar 2",criteria:v.c.map(function(c,i){return{id:i,tekst:c};})})
     .then(function(r){
       if(!r.resultaten)throw new Error("geen uitslag");
       var alles=v.c.every(function(c,i){return r.resultaten[i]===true;});
       if(alles)return goed();
-      h.pog++;bewaar();vraagScherm();zetFb("❌ Nog niet helemaal goed. "+(r.feedback||""));
+      h.pog++;if(r.feedback)(h.hints=h.hints||[]).push(r.feedback);bewaar();vraagScherm();zetFb("❌ Nog niet helemaal goed. "+(r.feedback||""));
     }).catch(function(){vraagScherm();zetFb("De AI is even niet bereikbaar. Wacht een paar seconden en probeer opnieuw. Lukt het niet? Roep de docent.");});
+}
+// Overgenomen hint? Letterlijke stukken of bijna dezelfde woorden als een hint tellen als kopiëren.
+function gekopieerd(ant,hints){
+  var norm=function(t){return " "+String(t).toLowerCase().replace(/[^a-z0-9à-ÿ]+/g," ").trim()+" ";};
+  var w=norm(ant).trim().split(" "),hs=hints.map(norm);
+  var in_=function(st){return hs.some(function(x){return x.indexOf(" "+st+" ")>=0;});};
+  if(w.length>=3&&w.length<5&&in_(w.join(" ")))return true;
+  for(var i=0;i+5<=w.length;i++)if(in_(w.slice(i,i+5).join(" ")))return true;
+  // ook bij een paar woorden anders: 80% van de inhoudswoorden (4+ letters) staat in één hint
+  var iw=w.filter(function(x){return x.length>=4;});
+  return iw.length>=4&&hs.some(function(x){return iw.filter(function(y){return x.indexOf(" "+y+" ")>=0;}).length>=0.8*iw.length;});
 }
 function goed(){
   var h=S.huidig;S.vragen++;if(h.t==="reken"){S.reken++;S.forceReken=false;}if(h.t==="makkelijk")S.mk=(S.mk||0)+1;if(h.t==="moeilijk")S.mo=(S.mo||0)+1;
@@ -272,10 +286,14 @@ function stuurCode(code,msg){
 }
 var PESTKORT={weg2:"2 fotostukjes kwijt",reken:"volgende vraag moet een rekenvraag zijn",dubbel:"2 vragen goed voor het groene scherm",slot:"foto 3 minuten op slot"};
 function kiesDoel(code,r,msg){
+  var kan=r.groepen.filter(function(g){return !g.beschermd;});
+  if(r.groepen.length&&!kan.length){msg.innerHTML='<div class="melding pest">🛡️ Alle andere groepen zijn net gepest en zijn even beschermd. Deze pestkaart vervalt.</div><button class="prim" id="pestVerval">Verder</button>';
+    $("pestVerval").onclick=function(){S.wacht=null;S.meld="";bewaar();$("groen").style.display="none";thuis();};return;}
   if(!r.groepen.length){msg.innerHTML='<div class="melding fout">Er zijn nog geen andere groepen. Probeer het zo opnieuw (voer de code nog eens in).</div>';return;}
   msg.innerHTML='<div class="melding pest">😈 Pestkaart: '+esc(PESTKORT[r.effect])+'. Welke groep krijgt hem?</div><div class="doelen">'+
-    r.groepen.map(function(g){return '<button class="ghost" data-id="'+esc(g.id)+'">'+esc(g.namen)+'</button>';}).join("")+'</div>';
-  Array.prototype.forEach.call(msg.querySelectorAll(".doelen button"),function(b){b.onclick=function(){
+    r.groepen.map(function(g){return g.beschermd?'<button class="ghost" disabled title="Net gepest">🛡️ '+esc(g.namen)+' (beschermd)</button>':'<button class="ghost" data-id="'+esc(g.id)+'">'+esc(g.namen)+'</button>';}).join("")+'</div>'+
+    '<p class="klein">🛡️ Een groep die net gepest is, is beschermd tot ze weer 2 vragen goed hebben.</p>';
+  Array.prototype.forEach.call(msg.querySelectorAll(".doelen button[data-id]"),function(b){b.onclick=function(){
     if(!confirm("Pestkaart sturen naar "+b.textContent+"?"))return;
     msg.innerHTML='<p class="klein">Versturen…</p>';
     post(SPEL,{a:"pest",id:S.id,code:code,doel:b.getAttribute("data-id")}).then(function(x){

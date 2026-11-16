@@ -127,6 +127,9 @@ export default {
       if (p.slachtoffer) return json({ fout: "Deze pestkaart is al gebruikt." });
       const doel = await get(env, "g:" + ronde + ":" + String(b.doel || "").slice(0, 8));
       if (!doel || doel.id === g.id) return json({ fout: "Kies een andere groep." });
+      // Bescherming: wie net gepest is, kan pas weer gepest worden na 2 nieuwe goede vragen.
+      if ((doel.vragen || 0) < (doel.beschermdTot || 0)) return json({ fout: "Die groep is net gepest en nog even beschermd. Kies een andere groep." });
+      doel.beschermdTot = (doel.vragen || 0) + 2; await put(env, "g:" + ronde + ":" + doel.id, doel);
       p.slachtoffer = doel.id; await put(env, pk, p);
       const ik = "i:" + ronde + ":" + doel.id, inbox = (await get(env, ik)) || [];
       inbox.push(code.effect); await put(env, ik, inbox); await put(env, gk, g);
@@ -158,7 +161,7 @@ export default {
       const groepen = []; let cur;
       do {
         const l = await env.DB.list({ prefix: "g:" + ronde + ":", cursor: cur });
-        for (const k of l.keys) { const x = await get(env, k.name); if (x && x.id !== g.id && !x.klaar) groepen.push({ id: x.id, namen: x.namen }); }
+        for (const k of l.keys) { const x = await get(env, k.name); if (x && x.id !== g.id && !x.klaar) groepen.push({ id: x.id, namen: x.namen, beschermd: (x.vragen || 0) < (x.beschermdTot || 0) }); }
         cur = l.list_complete ? null : l.cursor;
       } while (cur);
       return json({ ok: true, type: "pestkies", effect: code.effect, groepen });
