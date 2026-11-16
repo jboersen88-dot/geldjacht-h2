@@ -69,7 +69,7 @@ a.klein{color:var(--muted)}
 
 <script src="vragen.js"></script>
 <script src="vragen-extra.js?v=2"></script>
-<script src="fotos.js"></script>
+<script src="fotos.js?v=7"></script>
 <script>
 var SPEL="https://economie-h2-spel.nakijker-worker.workers.dev";
 var AI="https://escape-room-ai.nakijker-worker.workers.dev";
@@ -77,7 +77,7 @@ var NIV={makkelijk:{t:"Makkelijke theorievraag",s:"⭐",kl:"var(--e)"},moeilijk:
 var PEST={weg2:"Pestkaart! Jullie zijn 2 fotostukjes kwijt.",reken:"Pestkaart! Jullie volgende vraag MOET een rekenvraag zijn.",dubbel:"Pestkaart! Jullie moeten 2 vragen goed hebben voordat je naar de docent mag.",slot:"Pestkaart! Jullie foto zit 3 minuten op slot."};
 var KEY="geldjacht-h2", S=null;
 try{S=JSON.parse(localStorage.getItem(KEY));}catch(e){}
-function bewaar(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
+function bewaar(){try{localStorage.setItem(KEY,JSON.stringify(S));localStorage.setItem("laatsteSpel",KEY);}catch(e){}}
 function $(id){return document.getElementById(id);}
 function esc(t){return String(t==null?"":t).replace(/[&<>"]/g,function(c){return{"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
 function post(url,o){return fetch(url,{method:"POST",body:JSON.stringify(o)}).then(function(r){return r.json();});}
@@ -134,12 +134,14 @@ function thuis(){
 var fotoImg={},slotTimer=null;
 function tekenFoto(){
   var cv=$("cv");if(!cv)return;
-  var ctx=cv.getContext("2d"),st=FOTOS[S.foto].slice(0,S.stappen),k=cv.width/12;
+  var m=maat(S.foto),k=50;
+  if(cv.width!==m[0]*k){cv.width=m[0]*k;cv.height=m[1]*k;}
+  var ctx=cv.getContext("2d"),st=FOTOS[S.foto].slice(0,S.stappen);
   ctx.fillStyle="#0b1222";ctx.fillRect(0,0,cv.width,cv.height);
   ctx.fillStyle="#1c2742";
-  for(var x=0;x<12;x++)for(var y=0;y<16;y++)if((x+y)%2)ctx.fillRect(x*k,y*k,k,k);
+  for(var x=0;x<m[0];x++)for(var y=0;y<m[1];y++)if((x+y)%2)ctx.fillRect(x*k,y*k,k,k);
   var img=fotoImg[S.foto];
-  if(!img){img=fotoImg[S.foto]=new Image();img.onload=tekenFoto;img.src="f/"+S.foto+".jpg";return;}
+  if(!img){img=fotoImg[S.foto]=new Image();img.onload=tekenFoto;img.src="f/"+S.foto+".jpg?v=7";return;}
   if(!img.complete)return;
   st.forEach(function(r){ctx.drawImage(img,r[0]*100,r[1]*100,r[2]*100,r[3]*100,r[0]*k,r[1]*k,r[2]*k,r[3]*k);});
   clearInterval(slotTimer);

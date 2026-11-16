@@ -41,12 +41,15 @@ async function mac(key, body) {
   const b = new Uint8Array(await crypto.subtle.sign("HMAC", k, new TextEncoder().encode(body)));
   return ALFA[b[0] % 32] + ALFA[b[1] % 32];
 }
+// QR-codes die op de 3 mavo-plekken hangen (Fabrieksjacht); de Geldjacht gebruikt dezelfde 7 plekken en foto's.
+const PLEKKEN = { WGFWXP: 1, W3P4KA: 2, WRSVP2: 3, WK25E8: 4, WT8J3P: 5, WULZ72: 6, WVEVRG: 7 };
 async function leesCode(env, raw) {
   const c = String(raw || "").toUpperCase().replace(/[^0-9A-Z]/g, "").replace(/O/g, "0").replace(/I/g, "1");
+  if (PLEKKEN[c]) return { c, type: "W", foto: PLEKKEN[c] };
   if (c.length !== 6 || !"EMRPW".includes(c[0])) return null;
   if ((await mac(env.SLEUTEL, c.slice(0, 4))) !== c.slice(4)) return null;
   const n = ALFA.indexOf(c[1]);
-  return { c, type: c[0], effect: EFFECT[n % 4], foto: (n % 6) + 1 };
+  return { c, type: c[0], effect: EFFECT[n % 4], foto: c[0] === "W" ? 0 : (n % 6) + 1 }; // oude eigen W-codes horen bij geen plek meer
 }
 const get = async (env, k) => JSON.parse((await env.DB.get(k)) || "null");
 // Opslaan mag nooit het spel laten vastlopen (bijv. als de dagelijkse KV-schrijflimiet op is)
@@ -99,7 +102,15 @@ export default {
       const namen = String(b.namen || "").replace(/[<>]/g, "").slice(0, 60).trim();
       if (!namen) return json({ fout: "Vul jullie namen in" });
       const id = crypto.randomUUID().slice(0, 8);
-      const g = { id, namen, foto: 1 + Math.floor(Math.random() * 6), t: Date.now(), stukjes: 0, vragen: 0, reken: 0, mk: 0, mo: 0 };
+      // Eerlijk verdelen: willekeurig een foto die in deze ronde het minst vaak is uitgedeeld.
+      const tel = [0, 0, 0, 0, 0, 0, 0, 0]; let cur;
+      do {
+        const l = await env.DB.list({ prefix: "g:" + ronde + ":", cursor: cur });
+        for (const k of l.keys) { const x = await get(env, k.name); if (x && tel[x.foto] !== undefined) tel[x.foto]++; }
+        cur = l.list_complete ? null : l.cursor;
+      } while (cur);
+      const min = Math.min(...tel.slice(1)), vrij = [1, 2, 3, 4, 5, 6, 7].filter(f => tel[f] === min);
+      const g = { id, namen, foto: vrij[Math.floor(Math.random() * vrij.length)], t: Date.now(), stukjes: 0, vragen: 0, reken: 0, mk: 0, mo: 0 };
       await put(env, "g:" + ronde + ":" + id, g);
       return json({ ok: true, ronde, id, foto: g.foto });
     }
