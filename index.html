@@ -89,7 +89,7 @@ if(plekUitUrl)history.replaceState(null,"",location.pathname);
 function startScherm(){
   $("app").innerHTML='<h1>💰 Geldjacht: Jij en je geld</h1><p class="sub">Economie 2 mavo · hoofdstuk 2</p>'+
   '<div class="card"><p>Jullie spelen met z\'n tweeën. Beantwoord vragen, haal codes bij de docent en ontdek stukje voor stukje een foto van een plek in de school. Daar hangt een QR-code. De eerste 3 groepen die hem scannen winnen!</p>'+
-  '<p><b>Regels:</b> minstens 5 makkelijke, 4 moeilijke en 4 rekenvragen goed (pas dan blijft de foto zichtbaar en mag je scannen) · de AI kijkt na en geeft hints · pas als het scherm groen is mag je naar de docent.</p>'+
+  '<p><b>Regels:</b> minstens 6 makkelijke, 4 moeilijke en 4 rekenvragen goed (pas dan blijft de foto zichtbaar en mag je scannen) · de AI kijkt na en geeft hints · pas als het scherm groen is mag je naar de docent.</p>'+
   '<label for="n1">Voornaam 1</label><input id="n1" autocomplete="off" maxlength="25">'+
   '<label for="n2">Voornaam 2</label><input id="n2" autocomplete="off" maxlength="25">'+
   '<p id="startFout"></p><button class="prim" id="startBtn">Start het spel</button></div>';
@@ -159,7 +159,7 @@ function tekenFoto(){
   function kijk(){S.kijkEind=Date.now()+3000;S.kijkWacht=Date.now()+63000;bewaar();upd();}
   upd();slotTimer=setInterval(upd,250);
 }
-var DOEL={makkelijk:5,moeilijk:4,reken:4};
+var DOEL={makkelijk:6,moeilijk:4,reken:4};
 function fotoVrij(){return S.mk>=DOEL.makkelijk&&S.mo>=DOEL.moeilijk&&S.reken>=DOEL.reken;}
 
 /* ---------- Vragen ---------- */
