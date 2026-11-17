@@ -32,6 +32,8 @@ canvas{display:block;width:100%;height:auto;-webkit-touch-callout:none;user-sele
 .slot{position:absolute;inset:0;background:rgba(10,15,30,.94);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;font-weight:700;font-size:22px;padding:20px}
 .melding{border-radius:12px;padding:12px 14px;margin:10px 0;font-weight:600}
 .doelen{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin-top:8px}
+.bonus{background:#1d2433;color:#fff;border-radius:16px;padding:14px 18px;font-size:24px;font-weight:800;margin:12px auto;max-width:620px}
+.stap{font-size:19px;font-weight:700;margin:6px 0}
 .melding.pest{background:#fff1e6;border:2px solid var(--warn)}
 .melding.fout{background:#fde2e2}
 .melding.goed{background:#dcf5e3}
@@ -89,7 +91,7 @@ if(plekUitUrl)history.replaceState(null,"",location.pathname);
 function startScherm(){
   $("app").innerHTML='<h1>💰 Geldjacht: Jij en je geld</h1><p class="sub">Economie 2 mavo · hoofdstuk 2</p>'+
   '<div class="card"><p>Jullie spelen met z\'n tweeën. Beantwoord vragen, haal codes bij de docent en ontdek stukje voor stukje een foto van een plek in de school. Daar hangt een QR-code. De eerste 3 groepen die hem scannen winnen!</p>'+
-  '<p><b>Regels:</b> minstens 6 makkelijke, 4 moeilijke en 4 rekenvragen goed (pas dan blijft de foto zichtbaar en mag je scannen) · de AI kijkt na en geeft hints · pas als het scherm groen is mag je naar de docent.</p>'+
+  '<p><b>Regels:</b> minstens 6 makkelijke, 4 moeilijke en 4 rekenvragen goed (pas dan blijft de foto zichtbaar en mag je scannen) · na elke 3 goede vragen krijg je een bonus-pestkaart 😈 · de AI kijkt na en geeft hints · pas als het scherm groen is mag je naar de docent.</p>'+
   '<label for="n1">Voornaam 1</label><input id="n1" autocomplete="off" maxlength="25">'+
   '<label for="n2">Voornaam 2</label><input id="n2" autocomplete="off" maxlength="25">'+
   '<p id="startFout"></p><button class="prim" id="startBtn">Start het spel</button></div>';
@@ -122,7 +124,7 @@ function thuis(){
   '<div class="stat"><span class="pill">'+Math.min(S.stappen,n)+' van '+n+' stukjes</span></div></div>'+
   '<div class="card"><h2 style="margin-top:0">Voortgang</h2><div class="stat">'+
   [["makkelijk","⭐ Makkelijk",S.mk],["moeilijk","⭐⭐ Moeilijk",S.mo],["reken","🧮 Reken",S.reken]].map(function(x){return '<span class="pill '+(x[2]>=DOEL[x[0]]?"ok":"no")+'">'+x[1]+': '+x[2]+' / '+DOEL[x[0]]+'</span>';}).join("")+
-  '<span class="pill">Totaal goed: '+S.vragen+'</span></div><p class="klein">Haal alle drie de doelen: dan blijft jullie foto zichtbaar en mogen jullie de QR-code scannen.</p>'+
+  '<span class="pill">Totaal goed: '+S.vragen+'</span></div><p class="klein">😈 Nog '+(3-S.vragen%3)+' goede '+(3-S.vragen%3===1?'vraag':'vragen')+' tot jullie volgende bonus-pestkaart.</p><p class="klein">Haal alle drie de doelen: dan blijft jullie foto zichtbaar en mogen jullie de QR-code scannen.</p>'+
   '<label for="code">Code invoeren (pestkaart of QR-plek)</label><div class="row"><input id="code" autocomplete="off" autocapitalize="characters" maxlength="10" placeholder="bijv. P7KQ2X"><button class="prim" id="codeBtn">OK</button></div><div id="codeMsg"></div>'+
   '<p class="klein">Gevonden plek? Scan de QR-code met de camera van deze iPad, of typ de code die eronder staat.</p></div></div>';
   Array.prototype.forEach.call(document.querySelectorAll(".kies button"),function(b){b.onclick=function(){nieuweVraag(b.getAttribute("data-t"));};});
@@ -248,9 +250,10 @@ function gekopieerd(ant,hints){
 }
 function goed(){
   var h=S.huidig;S.vragen++;if(h.t==="reken"){S.reken++;S.forceReken=false;}if(h.t==="makkelijk")S.mk=(S.mk||0)+1;if(h.t==="moeilijk")S.mo=(S.mo||0)+1;
+  if(S.vragen%3===0)S.bonus=true; // na elke 3 goede vragen een pestkaart erbij
   S.meld="";
   if(S.dubbel>0){S.dubbel--;S.huidig=null;S.meld="Goed! Maar door de pestkaart moet je nog 1 vraag goed hebben voordat je naar de docent mag.";bewaar();sync();return thuis();}
-  S.wacht={niveau:h.t,vraag:vraagTekst(h),antwoord:(h.ber?h.ber+"\n→ ":"")+h.ant,t:Date.now()};S.huidig=null;bewaar();
+  S.wacht={niveau:h.t,vraag:vraagTekst(h),antwoord:(h.ber?h.ber+"\n→ ":"")+h.ant,t:Date.now(),bonus:S.bonus,stuk:false,pest:false};S.bonus=false;S.huidig=null;bewaar();
   sync();
   groen(true);
 }
@@ -263,24 +266,35 @@ function groen(nieuw){
   $("groenIn").innerHTML='<div class="feest">🎉</div><h2>We hebben het gered!</h2>'+
   '<p style="font-size:22px;font-weight:700">'+esc(S.namen)+'</p><div class="niveau">'+n.s+' '+n.t+'</div>'+
   '<p style="font-size:20px">Goed beantwoord om '+tijd+' · Ga nu naar de docent!</p>'+
+  (w.bonus?'<div class="bonus">🎁 BONUS! Jullie krijgen een fotokaartje én een pestkaart 😈</div>':'')+
   '<div class="card"><p class="klein">Vraag</p><p style="font-weight:700">'+esc(w.vraag)+'</p><p class="klein">Jullie antwoord</p><p style="white-space:pre-wrap">'+esc(w.antwoord)+'</p></div>'+
-  '<div class="card"><label for="gcode" style="margin-top:0">Code van de docent</label><div class="row"><input id="gcode" autocomplete="off" autocapitalize="characters" maxlength="10"><button class="prim" id="gBtn">OK</button></div><div id="gMsg"></div>'+
-  '<p class="klein">Je kunt een kaartje met fotostukjes kiezen of een pestkaart. Kies je een pestkaart? Voer hem hier in en kies daarna welke groep hem krijgt. Die groep ziet niet dat hij van jullie komt.</p></div>';
+  '<div class="card">'+(w.bonus?'<p class="stap">'+(w.stuk?'✅':'⬜')+' Fotokaartje ingevoerd</p><p class="stap">'+(w.pest?'✅':'⬜')+' Pestkaart ingevoerd en weggegeven</p>':'')+'<label for="gcode" style="margin-top:0">Code van de docent</label><div class="row"><input id="gcode" autocomplete="off" autocapitalize="characters" maxlength="10"><button class="prim" id="gBtn">OK</button></div><div id="gMsg"></div>'+
+  (w.bonus?'<p class="klein">Voer beide kaartjes hier in. Bij de pestkaart kies je daarna welke groep hem krijgt. Die groep ziet niet dat hij van jullie komt.</p>':'<p class="klein">Je kunt een kaartje met fotostukjes kiezen of een pestkaart. Kies je een pestkaart? Voer hem hier in en kies daarna welke groep hem krijgt. Die groep ziet niet dat hij van jullie komt.</p>')+'</div>';
   $("gBtn").onclick=function(){stuurCode($("gcode").value,$("gMsg"));};
   if(nieuw)confetti();
+}
+
+// Groen scherm sluiten zodra alles binnen is (bij een bonus: fotokaartje én pestkaart).
+function groenKlaar(){
+  var w=S.wacht;
+  if(w&&w.bonus&&!(w.stuk&&w.pest)){bewaar();return groen();}
+  S.wacht=null;bewaar();$("groen").style.display="none";thuis();
 }
 
 /* ---------- Codes ---------- */
 var foutTeller=0,foutTot=0;
 function stuurCode(code,msg){
   code=String(code||"").trim();if(!code)return;
+  var soort=code.toUpperCase().charAt(0);
+  if(S.wacht&&S.wacht.stuk&&/[EMR]/.test(soort)){msg.innerHTML='<div class="melding fout">Jullie fotokaartje is al ingevoerd. Nu nog de pestkaart.</div>';return;}
+  if(S.wacht&&S.wacht.bonus&&S.wacht.pest&&soort==="P"){msg.innerHTML='<div class="melding fout">Jullie pestkaart is al weggegeven. Nu nog het fotokaartje.</div>';return;}
   if(Date.now()<foutTot){msg.innerHTML='<div class="melding fout">Te veel foute codes. Wacht '+Math.ceil((foutTot-Date.now())/1000)+' seconden.</div>';return;}
   msg.innerHTML='<p class="klein">Code controleren…</p>';
   post(SPEL,{a:"code",id:S.id,code:code,wacht:S.wacht?S.wacht.niveau:null,voortgang:voortgang()}).then(function(r){
     if(r.oud){msg.innerHTML='<div class="melding fout">'+esc(r.fout)+'</div><button class="ghost" onclick="if(confirm(\'Opnieuw beginnen? Jullie voortgang is dan weg.\')){localStorage.removeItem(KEY);location.reload();}">Opnieuw beginnen</button>';return;}
     if(!r.ok){foutTeller++;if(foutTeller>=3){foutTeller=0;foutTot=Date.now()+30000;}msg.innerHTML='<div class="melding fout">'+esc(r.fout)+'</div>';return;}
     foutTeller=0;
-    if(r.type==="stuk"){S.stappen=Math.min(FOTOS[S.foto].length,S.stappen+r.aantal);S.wacht=null;S.meld="🧩 +"+r.aantal+" fotostukje"+(r.aantal>1?"s":"")+"!";}
+    if(r.type==="stuk"){S.stappen=Math.min(FOTOS[S.foto].length,S.stappen+r.aantal);S.meld="🧩 +"+r.aantal+" fotostukje"+(r.aantal>1?"s":"")+"!";if(S.wacht)S.wacht.stuk=true;return groenKlaar();}
     else if(r.type==="pestkies")return kiesDoel(code,r,msg);
     else if(r.type==="win"){S.plaats=r.plaats;bewaar();return winScherm();}
     bewaar();$("groen").style.display="none";thuis();
@@ -290,7 +304,7 @@ var PESTKORT={weg2:"2 fotostukjes kwijt",reken:"volgende vraag moet een rekenvra
 function kiesDoel(code,r,msg){
   var kan=r.groepen.filter(function(g){return !g.beschermd;});
   if(r.groepen.length&&!kan.length){msg.innerHTML='<div class="melding pest">🛡️ Alle andere groepen zijn net gepest en zijn even beschermd. Deze pestkaart vervalt.</div><button class="prim" id="pestVerval">Verder</button>';
-    $("pestVerval").onclick=function(){S.wacht=null;S.meld="";bewaar();$("groen").style.display="none";thuis();};return;}
+    $("pestVerval").onclick=function(){S.meld="";if(S.wacht)S.wacht.pest=true;groenKlaar();};return;}
   if(!r.groepen.length){msg.innerHTML='<div class="melding fout">Er zijn nog geen andere groepen. Probeer het zo opnieuw (voer de code nog eens in).</div>';return;}
   msg.innerHTML='<div class="melding pest">😈 Pestkaart: '+esc(PESTKORT[r.effect])+'. Welke groep krijgt hem?</div><div class="doelen">'+
     r.groepen.map(function(g){return g.beschermd?'<button class="ghost" disabled title="Net gepest">🛡️ '+esc(g.namen)+' (beschermd)</button>':'<button class="ghost" data-id="'+esc(g.id)+'">'+esc(g.namen)+'</button>';}).join("")+'</div>'+
@@ -300,8 +314,8 @@ function kiesDoel(code,r,msg){
     msg.innerHTML='<p class="klein">Versturen…</p>';
     post(SPEL,{a:"pest",id:S.id,code:code,doel:b.getAttribute("data-id")}).then(function(x){
       if(!x.ok){msg.innerHTML='<div class="melding fout">'+esc(x.fout)+'</div>';return;}
-      S.wacht=null;S.meld="😈 Pestkaart verstuurd naar "+x.namen+". Zij weten niet dat hij van jullie komt!";
-      bewaar();$("groen").style.display="none";thuis();
+      S.meld="😈 Pestkaart verstuurd naar "+x.namen+". Zij weten niet dat hij van jullie komt!";
+      if(S.wacht)S.wacht.pest=true;groenKlaar();
     }).catch(function(){msg.innerHTML='<div class="melding fout">Geen verbinding. Voer de code opnieuw in.</div>';});
   };});
 }
