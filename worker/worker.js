@@ -179,7 +179,7 @@ export default {
     }
     // W = plek-code (QR bij de locatie)
     if (code.foto !== g.foto) return json({ fout: "Dit is niet jullie plek! Kijk nog eens goed naar jullie foto." });
-    if (g.reken < 4 || (g.mo || 0) < 3 || (g.mk || 0) < 5) return json({ fout: "Bijna! Jullie moeten eerst 5 makkelijke, 3 moeilijke en 4 rekenvragen goed hebben." });
+    if (g.reken < 4 || (g.mo || 0) < 4 || (g.mk || 0) < 5) return json({ fout: "Bijna! Jullie moeten eerst 5 makkelijke, 4 moeilijke en 4 rekenvragen goed hebben." });
     const wk = "w:" + ronde, w = (await get(env, wk)) || [];
     let i = w.findIndex(x => x.id === g.id);
     if (i < 0) {
